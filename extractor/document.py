@@ -8,19 +8,18 @@ import cv2
 import sys
 import PIL
 import math
-import utils
 import codecs
 import hashlib
 import numpy as np
 import pandas as pd
 from io import BytesIO
+from extractor import utils
 from skimage import morphology
 import matplotlib.pyplot as plt
 from docx.oxml.ns import qn
 from docx.shared import RGBColor, Inches, Pt, Cm
 from docx import Document as DocxDocument
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT, WD_TAB_ALIGNMENT
-from utils import find_middles, get_sections
 from paddleocr import PaddleOCR
 
 ocr_engine = PaddleOCR(use_angle_cls=True, lang="ch")
@@ -435,7 +434,7 @@ class Table(BaseElement):
             for c in row:
                 l, t, r, b = c.rect
                 cell_binary = self.binary[t:b, l:r]
-                row_middles, col_middles = find_middles(cell_binary, row_gap=1)
+                row_middles, col_middles = utils.find_middles(cell_binary, row_gap=1)
                 for k in col_middles:
                     self.grid[t:b, l + k:l + k + 2] = 1
                 if row_middles and row_middles[0] < 5:
@@ -461,7 +460,7 @@ class Table(BaseElement):
                         cl, ct, cr, cb = c.rect
                         cell_binary = self.binary[ct:cb, cl:cr]
                         x_shadow = cell_binary.sum(axis=1)
-                        sections = get_sections(x_shadow, gap=1)
+                        sections = utils.get_sections(x_shadow, gap=1)
                         tops = [s[0] for s in sections][1:]
                         if not min_tops or len(min_tops) > len(tops):
                             min_tops = tops
