@@ -271,7 +271,7 @@ class PDF_OCR(object):
             mode = "RGB" if pix.alpha == 0 else "RGBA"
         else:
             mode = "CMYK"
-        img = Image.frombytes(mode, (pix.width, pix.height), pix.samples)
+        img = PIL.Image.frombytes(mode, (pix.width, pix.height), pix.samples)
         img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
         return img
 
