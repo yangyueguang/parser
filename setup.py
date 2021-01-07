@@ -15,6 +15,10 @@ setup(
     author_email='2829969299@qq.com',
     license='MIT',
     packages=find_packages(),
-    include_package_data=False,
+    include_package_data=True,
     zip_safe=False,
+    keywords=("pdf", "extractor","extracter", "parser"),
+    long_description="extract pdf include edit or not",
+    platforms="any",
+    install_requires=['numpy', 'pandas', 'skimage', 'matplotlib', 'opencv-python', 'paddleocr', 'PIL', 'python-docx']
 )
