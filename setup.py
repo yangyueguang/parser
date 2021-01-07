@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='py_extractor',
-    version='0.1.0',
+    version='0.1.1',
     description='extract pdf',
     classifiers=[
         'License :: OSI Approved :: MIT License',
@@ -20,5 +20,5 @@ setup(
     keywords=["pdf", "extractor", "extracter", "parser"],
     long_description="extract pdf include edit or not",
     platforms="any",
-    install_requires=['numpy', 'pandas', 'scikit-image', 'matplotlib', 'opencv-python', 'paddleocr', 'pillow', 'python-docx']
+    install_requires=['numpy', 'pandas', 'scikit-image', 'matplotlib', 'opencv-python', 'pillow', 'python-docx']
 )
