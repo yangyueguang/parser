@@ -10,3 +10,4 @@ bottle==0.12.19
 click==7.1.2
 psutil==5.7.3
 python-docx
+paddlepaddle

@@ -17,6 +17,7 @@ pip install paddlehub
 pip install shapely
 pip install pyclipper
 pip install paddleocr
+pip install paddlepaddle
 
 
 hub install chinese_ocr_db_crnn_server==1.1.0
