@@ -1,7 +1,7 @@
 # import paddlehub as hub
 import requests
 import json
-from document import Document, Page
+from .document import Document, Page
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np

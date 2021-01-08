@@ -204,12 +204,6 @@ class Translator(object):
         plt.show()
 
 
-from .test import abcd
-
-def test_abcd(name):
-    abcd(name)
-
-
 if __name__ == '__main__':
     t = Translator(1000, 20)
     t.file_to_video('../Dockerfile_cpu', '../data_result/b.avi')
