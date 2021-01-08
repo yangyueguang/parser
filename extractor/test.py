@@ -41,22 +41,30 @@ def parse(pdf_path, page=None):
         doc = Document.parse(pdf_path)
     return doc
 
+
 import utils
 def cat(data):
     return utils.file_to_base64(data)
 
-pdf_path = '../data_result/ddd.pdf'
-doc = parse(pdf_path)
-d = doc.json()
-import json
-json_file = '../data_result/a.json'
-with open(json_file, 'w') as f:
-    f.write(json.dumps(d, ensure_ascii=False, indent=4))
-with open(json_file, 'r') as f:
-    abc = Document.load(json.loads(f.read()))
-# ad = doc.html()
-# with open('../data_result/c.html', 'w') as f:
-#     f.write(ad)
-# doc.save_to_docx('../data_result/c.docx')
-print('over')
 
+def test():
+    pdf_path = '../data_result/ddd.pdf'
+    doc = parse(pdf_path)
+    d = doc.json()
+    import json
+    json_file = '../data_result/a.json'
+    with open(json_file, 'w') as f:
+        f.write(json.dumps(d, ensure_ascii=False, indent=4))
+    with open(json_file, 'r') as f:
+        abc = Document.load(json.loads(f.read()))
+    # ad = doc.html()
+    # with open('../data_result/c.html', 'w') as f:
+    #     f.write(ad)
+    # doc.save_to_docx('../data_result/c.docx')
+    print('over')
+
+
+def abcd(name):
+    print(name * 10)
+    print('==' * 10)
+    print('over')
