@@ -22,8 +22,9 @@ pip install paddlepaddle
 
 hub install chinese_ocr_db_crnn_server==1.1.0
 
-#上传pip：
-python3 produce.py sdist upload
+#上传pip：必须用setup的名
+python3 setup.py sdist upload
+twine upload dist/*
 
 # 打包为so
 python3 pack.py build_ext

@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='py_extractor',
-    version='0.1.4',
+    name='py-extractor',
+    version='0.1.7',
     description='extract pdf',
     classifiers=[
         'License :: OSI Approved :: MIT License',
