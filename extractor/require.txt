@@ -4,7 +4,7 @@ pyclipper
 lmdb
 tqdm
 numpy
-opencv-python
+opencv-python==4.2.0.32
 gevent==20.9.0
 bottle==0.12.19
 click==7.1.2

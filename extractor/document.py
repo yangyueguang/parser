@@ -20,9 +20,12 @@ from docx.oxml.ns import qn
 from docx.shared import RGBColor, Inches, Pt, Cm
 from docx import Document as DocxDocument
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT, WD_TAB_ALIGNMENT
-from paddleocr import PaddleOCR
-
-ocr_engine = PaddleOCR(use_angle_cls=True, lang="ch")
+ocr_engine = None
+try:
+    from paddleocr import PaddleOCR
+    ocr_engine = PaddleOCR(use_angle_cls=True, lang="ch")
+except Exception as e:
+    print('please install paddleocr')
 
 
 class Dict(dict):
@@ -45,6 +48,8 @@ class Dict(dict):
 
 def get_text_boxs(img: np.ndarray):
     boxs = []
+    if ocr_engine is None:
+        return boxs
     h, w, _ = img.shape
     def recognize_img(recog_img, offset=0):
         result = ocr_engine.ocr(recog_img)
