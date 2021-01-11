@@ -5,15 +5,14 @@ import abc
 import os
 import re
 import cv2
-import sys
 import PIL
 import math
+import base64
 import codecs
 import hashlib
 import numpy as np
 import pandas as pd
 from io import BytesIO
-from extractor import utils
 from skimage import morphology
 import matplotlib.pyplot as plt
 from docx.oxml.ns import qn
@@ -46,31 +45,91 @@ class Dict(dict):
             return None
 
 
-def get_text_boxs(img: np.ndarray):
-    boxs = []
-    if ocr_engine is None:
+class utils(object):
+    @staticmethod
+    def get_sections(shadow, gap, shadow_gap=10):
+        if len(shadow) <= 0: return []
+        satisfy = np.where(shadow > min(shadow_gap, max(2, shadow.max() / 10)))
+        indexs = np.append(np.where(np.diff(satisfy) > gap)[1] + 1, values=[sys.maxsize], axis=0)
+        sections = np.split(satisfy[0], indexs, axis=0)[:-1]
+        return sections
+
+    @staticmethod
+    def get_middles(shadow, gap, shadow_gap=10):
+        sections = utils.get_sections(shadow, gap, shadow_gap)
+        middles = [(sections[ind][-1] + sections[ind + 1][0]) // 2 for ind in range(len(sections) - 1)]
+        return middles
+
+    @staticmethod
+    def find_x_middles(binary: np.ndarray, col_gap=3):
+        x_shadow = binary.sum(axis=0)
+        return utils.get_middles(x_shadow, col_gap)
+
+    @staticmethod
+    def find_y_bottoms(binary: np.ndarray, row_gap=3):
+        y_shadow = binary.sum(axis=1)
+        sections = utils.get_sections(y_shadow, row_gap, 10)
+        middles = [sections[ind + 1][0] for ind in range(len(sections) - 1)]
+        return middles
+
+    @staticmethod
+    def find_y_middles(binary: np.ndarray, row_gap=3):
+        y_shadow = binary.sum(axis=1)
+        return utils.get_middles(y_shadow, row_gap)
+
+    @staticmethod
+    def find_middles(binary: np.ndarray, col_gap=3, row_gap=3):
+        return utils.find_y_middles(binary, row_gap), utils.find_x_middles(binary, col_gap)
+
+    @staticmethod
+    def get_text_boxs(img: np.ndarray):
+        boxs = []
+        if ocr_engine is None:
+            return boxs
+        h, w, _ = img.shape
+
+        def recognize_img(recog_img, offset=0):
+            result = ocr_engine.ocr(recog_img)
+            for l in result:
+                txt = l[-1][0]
+                if not txt.strip():
+                    continue
+                x0, y0 = l[0][0]
+                x1, y1 = l[0][2]
+                cw = (x1 - x0) / len(txt)
+                chars = [Char(c, x0 + i * cw, y0 + offset, x0 + (i + 1) * cw, y1 + offset) for i, c in enumerate(txt)]
+                boxs.append(Box(chars, x0, y0 + offset, x1, y1 + offset))
+
+        if h <= 1000:
+            recognize_img(img)
+        else:
+            middle = round(h / 2)
+            top = img[0:middle, 0:w]
+            bottom = img[middle - 5:h, 0:w]
+            recognize_img(top)
+            recognize_img(bottom, middle - 5)
         return boxs
-    h, w, _ = img.shape
-    def recognize_img(recog_img, offset=0):
-        result = ocr_engine.ocr(recog_img)
-        for l in result:
-            txt = l[-1][0]
-            if not txt.strip():
-                continue
-            x0, y0 = l[0][0]
-            x1, y1 = l[0][2]
-            cw = (x1 - x0) / len(txt)
-            chars = [Char(c, x0 + i * cw, y0+offset, x0 + (i+1) * cw, y1+offset) for i, c in enumerate(txt)]
-            boxs.append(Box(chars, x0, y0 + offset, x1, y1 + offset))
-    if h <= 1000:
-        recognize_img(img)
-    else:
-        middle = round(h / 2)
-        top = img[0:middle, 0:w]
-        bottom = img[middle - 5:h, 0:w]
-        recognize_img(top)
-        recognize_img(bottom, middle - 5)
-    return boxs
+
+    # 模版匹配从大图里找到这个小图对应的位置
+    @staticmethod
+    def find_img(imgPath, litle_img):
+        target = cv2.imread(imgPath)
+        th, tw = litle_img.shape[:2]
+        res = cv2.matchTemplate(target, litle_img, cv2.TM_CCOEFF)
+        res_sorted = sorted(res.max(axis=1), reverse=True)
+        res_dif = [0] * 150
+        for i in range(150):
+            res_dif[i] = (res_sorted[i] - res_sorted[i + 1]) * 100. / res_sorted[i + 1]
+        max_lastIdx = res_dif.index(sorted(res_dif, reverse=True)[0])
+        idx = np.argwhere(res >= res_sorted[max_lastIdx])
+        idx_set = set(np.unique(idx[:, 0]))
+        for i in range(len(idx)):
+            if idx[i, 0] in idx_set:
+                idx_set.remove(idx[i, 0])
+                tl = (idx[i, 1], idx[i, 0])
+                br = (tl[0] + tw, tl[1] + th)
+                cv2.rectangle(target, tl, br, (0, 0, 0), 1)
+        cv2.imwrite(imgPath, target)
 
 
 class Serializable(object):
@@ -689,6 +748,8 @@ class Graph(BaseElement):
         if self.page is None:
             return
         if self.img_id:
+            # base_image = self.page.doc.extractImage(self.img_id)
+            # image = PIL.Image.open(BytesIO(base_image["image"]))
             return fitz.Pixmap(self.page.doc, self.img_id)
         clip = [i/self.page.scale for i in self] if self.page.is_ocr else self.rect
         return self.page.getPixmap(clip=clip)
@@ -733,7 +794,7 @@ class Page(Box):
     def parse_ocr(self, page: fitz.Page):
         image_array = np.frombuffer(self.getPixmap().getPNGData(), dtype=np.uint8)
         img = cv2.imdecode(image_array, cv2.IMREAD_ANYCOLOR)
-        boxs = get_text_boxs(img)
+        boxs = utils.get_text_boxs(img)
         op = ImageLayout(None, img=img, page=self)
         op.layout_parse()
         op.fill_boxs(boxs)
@@ -1005,6 +1066,15 @@ class Page(Box):
     def getPixmap(self, matrix=fitz.Matrix(3, 3).preRotate(0), clip=None):
         return self.own.getPixmap(matrix, clip=clip)
 
+    def annots(self, types=None):
+        return self.own.annots(types)
+
+    def widgets(self, types=None):
+        return self.own.widgets(types)
+
+    def links(self, kinds=None):
+        return self.own.links(kinds)
+
     def getLinks(self):
         return self.own.getLinks()
 
@@ -1036,20 +1106,31 @@ class Page(Box):
 class Document(fitz.Document):
     def __init__(self, file, password: str = None, **kwargs):
         filename, stream = None, None
-        if file is None:
-            return
-        elif isinstance(file, str):
+        if isinstance(file, str):
             filename = file
         else:
             stream = file
         super(Document, self).__init__(filename=filename, stream=stream, filetype='pdf')
         if self.needsPass:
             self.authenticate(password or '')
-        if not self.isPDF or self.needsPass and not password:
-            raise ValueError('not pdf file')
         self.pages = []
         self.metadata['name'] = self.name
         self.metadata['hash'] = hashlib.sha256(open(file, 'rb').read() if filename else stream).hexdigest()
+        if not self.isPDF or self.needsPass and not password:
+            raise ValueError('not pdf file or need password')
+
+    @classmethod
+    def load_from_images(cls, imgs: list):
+        doc = cls(None)
+        for i in imgs:
+            p = cls(i)
+            rect = p[0].rect
+            imgpdf = cls(p.convertToPDF())
+            p.close()
+            # doc.insertPDF(imgpdf)
+            page = doc.newPage(width=rect.width, height=rect.height)
+            page.showPDFpage(rect, imgpdf, 0)
+        return doc
 
     def parse(self):
         global_y = 0
@@ -1058,6 +1139,28 @@ class Document(fitz.Document):
             p = Page.parse(self, page, page_num, global_y)
             global_y += p.height
             self.pages.append(p)
+
+    def save_layout(self, layout_path: str):
+        for page in self:
+            img = page.newShape()
+            disp = fitz.Rect(page.CropBoxPosition, page.CropBoxPosition)
+            img.drawRect(page.rect + disp)
+            img.finish(color=None, fill=None)
+            blks = page.getTextBlocks()
+            for b in blks:
+                img.drawRect(fitz.Rect(b[:4]) + disp)
+                color = (1, 0 if b[-1] == 1 else 1, 0)
+                img.finish(width=2, color=color)
+            draws = page.getDrawings()
+            for j in draws:
+                r = j['rect'].irect
+                cv2.rectangle(img, r[:2], r[2:], (255, 0, 0), 2)
+            image_list = page.getImageList()
+            for ig in image_list:
+                image_box = page.getImageBbox(ig[-2])
+                cv2.rectangle(img, image_box.irect[:2], image_box.irect[2:4], (255, 0, 0), 2)
+            img.commit()
+        self.save(layout_path, garbage=4, deflate=True, clean=True)
 
     def json(self) -> dict:
         serialized_document = {
@@ -1078,17 +1181,23 @@ class Document(fitz.Document):
         document.metadata = json_dict['metadata']
         return document
 
-    def save(self, filename):
-        super(Document, self).save(filename)
+    def save(self, filename, garbage=0, deflate=0, clean=0):
+        super(Document, self).save(filename, garbage=garbage, deflate=deflate, clean=clean)
 
     def getToC(self):
-        super(Document, self).getToC()
+        return super(Document, self).getToC()
 
     def setToC(self, toc):
         super(Document, self).setToC(toc)
 
+    def PDFCatalog(self):
+        return super(Document, self).PDFCatalog()
+
     def newPage(self, pno=-1, width=595, height=842):
         return super(Document, self).newPage(pno, width, height)
+
+    def insertPDF(self, doc: fitz.Document, from_page=-1):
+        super(Document, self).insertPDF(doc, from_page)
 
     def remove_hidden(self):
         def remove_hidden(cont_lines):
@@ -1230,7 +1339,7 @@ class Document(fitz.Document):
                 elif isinstance(m, Graph) and m.page is not None:
                     pix = m.get_pixmap()
                     md = pix.getPNGData()
-                    pic = utils.file_to_base64(md)
+                    pic = base64.b64encode(md).decode('utf-8')
                     w = f'<img src="data:image/jpeg;base64, {pic}"/>'
                     if m.text.strip():
                         w += f'<p>{m.text}</p>'
