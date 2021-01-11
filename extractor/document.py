@@ -688,12 +688,10 @@ class Graph(BaseElement):
     def get_pixmap(self):
         if self.page is None:
             return
-        doc = self.page.doc
         if self.img_id:
-            return fitz.Pixmap(doc, self.img_id)
-        page = doc[self.page.index]
+            return fitz.Pixmap(self.page.doc, self.img_id)
         clip = [i/self.page.scale for i in self] if self.page.is_ocr else self.rect
-        return page.getPixmap(matrix=fitz.Matrix(3, 3).preRotate(0), alpha=False, clip=clip)
+        return self.page.getPixmap(clip=clip)
 
 
 class Page(Box):
@@ -704,6 +702,7 @@ class Page(Box):
         self.index = index
         self.rotate = 0
         self.scale = 1
+        self.own = self.doc[self.index]
         self.is_ocr = False
         self.grid = None  # 网格线二进制
         self.binary = None  # 实体二进制
@@ -732,8 +731,7 @@ class Page(Box):
         return p
 
     def parse_ocr(self, page: fitz.Page):
-        pix = page.getPixmap(matrix=fitz.Matrix(3, 3).preRotate(0), alpha=False)
-        image_array = np.frombuffer(pix.getPNGData(), dtype=np.uint8)
+        image_array = np.frombuffer(self.getPixmap().getPNGData(), dtype=np.uint8)
         img = cv2.imdecode(image_array, cv2.IMREAD_ANYCOLOR)
         boxs = get_text_boxs(img)
         op = ImageLayout(None, img=img, page=self)
@@ -965,15 +963,10 @@ class Page(Box):
         return meta_list
 
     def show(self):
-        page = self.doc[self.index]
-        pix = page.getPixmap(matrix=fitz.Matrix(3, 3).preRotate(0), alpha=False)
-        pic = PIL.Image.open(BytesIO(pix.getPNGData()))
-        pic.show(str(self.index))
+        PIL.Image.open(BytesIO(self.getPixmap().getPNGData())).show(str(self.index))
 
     def save(self, file_name: str):
-        page = self.doc[self.index]
-        pix = page.getPixmap(matrix=fitz.Matrix(3, 3).preRotate(0), alpha=False)
-        pix.writePNG(file_name)
+        self.getPixmap().writePNG(file_name)
 
     @property
     def text(self) -> str:
@@ -996,6 +989,48 @@ class Page(Box):
 
     def __hash__(self):
         return hash(id(self))
+
+    def drawRect(self, rect, color=None, fill=None):
+        img = self.own.newShape()
+        img.drawRect(fitz.Rect(rect))
+        img.finish(1, color, fill)
+        img.commit(overlay=True)
+
+    def getText(self, option="text", clip=None, flags=None):
+        return self.own.getText(option, clip, flags)
+
+    def getTextPage(self, clip=None, flags=0):
+        return self.own.getTextPage(clip, flags)
+
+    def getPixmap(self, matrix=fitz.Matrix(3, 3).preRotate(0), clip=None):
+        return self.own.getPixmap(matrix, clip=clip)
+
+    def getLinks(self):
+        return self.own.getLinks()
+
+    def updateLink(self, lnk):
+        return self.own.updateLink(lnk)
+
+    def insertLink(self, lnk, mark=True):
+        self.own.insertLink(lnk, mark)
+
+    def insertText(self, point, text, fontsize=11, color=None, fill=None):
+        return self.own.insertText(point, text, fontsize, color=color, fill=fill)
+
+    def insertTextbox(self, rect, buffer, fontsize=11, color=None, fill=None):
+        return self.own.insertTextbox(rect, buffer, fontsize=fontsize, color=color, fill=fill)
+
+    def insertImage(self, rect, filename=None, pixmap=None, stream=None):
+        return self.own.insertImage(rect, filename, pixmap, stream)
+
+    def newShape(self):
+        return fitz.utils.Shape(self.own)
+
+    def searchFor(self, text, quads=False, clip=None):
+        return self.own.searchFor(text, quads=quads, clip=clip)
+
+    def writeText(self, rect=None, writers=None, color=None):
+        return self.own.writeText(rect, writers, color=color)
 
 
 class Document(fitz.Document):
