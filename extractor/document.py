@@ -484,8 +484,8 @@ class Table(BaseElement):
     def get_blocks(self):
         if self.boxs:
             return self.boxs
-        if not self._blocks and isinstance(self.page, fitz.Document):
-            page = self.page.pages[self.chars[0].page - 1]
+        if not self._blocks and self.page is not None and self.page.own is not None:
+            page = self.page.own
             self._blocks = page.getText('rawdict', clip=(self.x, self.y, self.r, self.b))
         boxs = [Box.load_span(span) for block in self._blocks for line in block for span in line['spans']]
         boxs = [b for b in boxs if b.text.strip()]
