@@ -149,7 +149,7 @@ class Serializable(object):
         return self.__class__.__name__.lower()
 
     @classmethod
-    def load(cls, *args, **kwargs):
+    def load(cls, j: Dict):
         pass
 
     @staticmethod
@@ -756,9 +756,9 @@ class Graph(BaseElement):
 
 
 class Page(Box):
-    def __init__(self, doc: fitz.Document, meta_list: list, index: int, *args):
-        super(Page, self).__init__([c for l in meta_list for c in l.chars], *args)
-        self.meta_list = meta_list
+    def __init__(self, doc: fitz.Document, index: int, *args):
+        super(Page, self).__init__([], *args)
+        self.meta_list = []
         self.doc = doc
         self.index = index
         self.rotate = 0
@@ -791,7 +791,7 @@ class Page(Box):
         p.rotate = j.rotate
         return p
 
-    def parse_ocr(self, page: fitz.Page):
+    def parse_ocr(self):
         image_array = np.frombuffer(self.getPixmap().getPNGData(), dtype=np.uint8)
         img = cv2.imdecode(image_array, cv2.IMREAD_ANYCOLOR)
         boxs = utils.get_text_boxs(img)
@@ -802,27 +802,22 @@ class Page(Box):
         self.grid = op.grid
         self.binary = op.block_binary
 
-    @classmethod
-    def parse(cls, doc: fitz.Document, page: fitz.Page, index=0, global_y=0):
-        p = cls(doc, [], page.number, *page.rect.irect)
-        p.b += global_y
-        p.y += global_y
-        p.rotate = page.rotation
-        meta_list = p.get_base_metas(page)
-        if p.is_ocr:
-            p.parse_ocr(page)
-            return p
-        p.binary = np.zeros(p.grid.shape, dtype=int)
+    def parse(self):
+        meta_list = self.get_base_metas()
+        if self.is_ocr:
+            self.parse_ocr()
+            return self
+        self.binary = np.zeros(self.grid.shape, dtype=int)
         contents = [i for i in meta_list if not i.is_line]
         for i in contents:
             for l in i.lines:
                 for b in l.boxs:
                     x, y, r, b = b.rect
-                    p.binary[y:b + 1, x: r + 1] = 1
-        columns = p._split_columns(meta_list)
-        result = [m for ms, binary in columns for m in p.deal_no_line(ms, binary)]
+                    self.binary[y:b + 1, x: r + 1] = 1
+        columns = self._split_columns(meta_list)
+        result = [m for ms, binary in columns for m in self.deal_no_line(ms, binary)]
         for _, grid in columns[:-1]:
-            p.grid += grid
+            self.grid += grid
         # 处理几个段落合并在一起的情况
         new_result = []
         for m in result:
@@ -841,11 +836,11 @@ class Page(Box):
                 new_result.append(Line(p, [], m.x, m.y, m.r, m.b))
             else:
                 new_result.append(m)
-        p.meta_list = new_result
-        p.fresh()
-        return p
+        self.meta_list = new_result
+        self.fresh()
 
-    def get_base_metas(self, page: fitz.Page):
+    def get_base_metas(self):
+        page = self.own
         meta_list = []
         binary = np.zeros(page.rect.irect[2:][::-1], dtype=int)
         page_raw = page.getTextPage().extractRAWDICT()
@@ -1136,8 +1131,12 @@ class Document(fitz.Document):
         global_y = 0
         for page_num, page in enumerate(self):
             print(f'start parse page {str(page_num)}')
-            p = Page.parse(self, page, page_num, global_y)
+            p = Page(self, page.number, *page.rect.irect)
+            p.b += global_y
+            p.y += global_y
+            p.rotate = page.rotation
             global_y += p.height
+            p.parse()
             self.pages.append(p)
 
     def save_layout(self, layout_path: str):

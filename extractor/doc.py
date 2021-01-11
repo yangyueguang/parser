@@ -2,25 +2,59 @@
 import re
 import math
 import fitz
-import json
 import numpy as np
 import pandas as pd
+from .document import Document
+
+
+class Dict(dict):
+    def __init__(self, sdict=None):
+        super(dict, self).__init__()
+        sdict = sdict or {}
+        for sk, sv in sdict.items():
+            if isinstance(sv, dict):
+                self[sk] = Dict(sv)
+            else:
+                self[sk] = sv
+
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            return None
 
 
 class Serializable(object):
 
+    def json(self) -> dict:
+        return {}
+
     @property
     def text(self) -> str:
+        return ''
+
+    @property
+    def type(self) -> str:
+        return self.__class__.__name__.lower()
+
+    @classmethod
+    def load(cls, j: Dict):
         pass
 
-
-    def cat_binary(self, binary):
+    def cat_binary(self, binary: np.ndarray):
+        """
+        用于界面可视化查看grid或者binary
+        """
         pass
 
 
 class Box(Serializable):
     def __init__(self, chars: list, *args):
         super(Box, self).__init__()
+        self.x, self.y, self.r, self.b = map(float, args[:4])
+        self.chars = chars or []
+        self.row_span = 1
+        self.col_span = 1
 
     @property
     def width(self) -> float:
@@ -55,82 +89,45 @@ class Box(Serializable):
         return math.floor(self.x), math.floor(self.y), math.ceil(self.r), math.ceil(self.b)
 
     def include_point(self, x: float, y: float):
-        self.x = min(self.x, x)
-        self.y = min(self.y, y)
-        self.r = max(self.r, x)
-        self.b = max(self.b, y)
+        pass
 
     def include_box(self, box):
-        self.include_point(box.x, box.y)
-        self.include_point(box.r, box.b)
-        return self
+        pass
 
     def intersect(self, b):
-        if not self.is_intersect(b):
-            return Box([])
-        return Box([], max(self.x, b.x), max(self.y, b.y), min(self.r, b.r), min(self.b, b.b))
+        """取交集区域"""
+        pass
 
-    def is_intersect(self, b):
-        return min(self.r, b.r) > max(self.x, b.x) and min(self.b, b.b) > max(self.y, b.y)
+    def is_intersect(self, b) -> bool:
+        """是否有交集"""
+        return False
 
 
 class BaseElement(Box):
     def __init__(self, page, lines: list, *args):
-        super(BaseElement, self).__init__([c for l in lines for c in l.chars], *args)
+        super(BaseElement, self).__init__([], *args)
         self.lines = lines
         self.page = page
         self.parent = None
         self.children = []
-        self._blocks = []
-
 
     @property
     def global_y(self) -> float:
         return (self.page.y if self.page else 0) + self.y
 
-    @classmethod
-    def load(cls, j: Dict):
-        rect = [j.x, j.y, j.r, j.b]
-        text_line = TextLine([Box([Char(i, *rect) for i in j.str], *rect)], *rect)
-        p = cls(None, [text_line], j.x, j.y, j.r, j.b)
-        return p
-
-    @property
-    def text(self) -> str:
-        if not self.chars:
-            self.chars = [c for l in self.lines for c in l.chars]
-        return ''.join([c.str for c in self.chars])
-
 
 class Char(Box):
     def __init__(self, value: str = '', *args):
-        super(Char, self).__init__(None, *args)
+        super(Char, self).__init__([], *args)
         self.color = 0
         self.font = None
         self.str = value
 
-    @property
-    def text(self) -> str:
-        return self.str
-
-    def __str__(self):
-        return json.dumps(self.json(), ensure_ascii=False)
-
-    def __eq__(self, other):
-        return super(Char, self).__eq__(other) and self.str == other.str
-
 
 class TextLine(Box):
     def __init__(self, boxs: [Box], *args):
-        super(TextLine, self).__init__([c for box in boxs for c in box.chars], *args)
+        super(TextLine, self).__init__([], *args)
         self.boxs = boxs
-
-    def json(self) -> dict:
-        pass
-
-    @classmethod
-    def load(cls, j: Dict):
-        return cls([Box.load(Dict(i)) for i in j.boxs], j.x, j.y, j.r, j.b)
 
 
 class Table(BaseElement):
@@ -139,29 +136,23 @@ class Table(BaseElement):
         self.rows = len(lines)
         self.cols = len(lines[0].boxs) if self.rows > 0 else 0
         self.page_number = 0
-        self.grid = None
-        self.binary = None
-        self.boxs = []
+        self.grid: np.ndarray = None
+        self.binary: np.ndarray = None
+        self.boxs: [Box] = []
 
     @property
     def cells(self) -> [Box]:
         return [cell for row in self.lines for cell in row.boxs]
 
     @property
-    def matrix(self):
+    def matrix(self) -> pd.DataFrame:
         matrix = [[cell.text for cell in line.boxs] for line in self.lines]
         res = pd.DataFrame(data=matrix)
         return res
 
-    def add_edges(self):
-        if self.grid is None:
-            return
-        self.grid[:3, :] = self.grid[-3:, :] = self.grid[:, :3] = self.grid[:, -3:] = 1
-
-
     @property
     def html(self) -> str:
-        pass
+        return ''
 
 
 class Line(Table):
@@ -178,6 +169,7 @@ class Title(BaseElement):
 class Paragraph(BaseElement):
     def __init__(self, page, lines: [TextLine], *args):
         super(Paragraph, self).__init__(page, lines, *args)
+
 
 class Header(BaseElement):
     def __init__(self, page, lines: [TextLine], *args):
@@ -206,12 +198,10 @@ class Graph(BaseElement):
         pass
 
 
-
-
 class Page(Box):
-    def __init__(self, doc: fitz.Document, meta_list: list, index: int, *args):
-        super(Page, self).__init__([c for l in meta_list for c in l.chars], *args)
-        self.meta_list = meta_list
+    def __init__(self, doc: fitz.Document, index: int, *args):
+        super(Page, self).__init__([], *args)
+        self.meta_list = []
         self.doc = doc
         self.index = index
         self.rotate = 0
@@ -221,24 +211,14 @@ class Page(Box):
         self.grid = None  # 网格线二进制
         self.binary = None  # 实体二进制
 
-
-
-    @classmethod
-    def parse(cls, doc: fitz.Document, page: fitz.Page, index=0, global_y=0):
+    def parse(self):
         pass
-
-
 
     def show(self):
         pass
 
     def save(self, file_name: str):
-        self.getPixmap().writePNG(file_name)
-
-    @property
-    def text(self) -> str:
-        return '\n'.join([m.text for m in self.meta_list])
-
+        pass
 
     def drawRect(self, rect, color=None, fill=None):
         pass
@@ -289,73 +269,12 @@ class Page(Box):
         return self.own.writeText(rect, writers, color=color)
 
 
-class Document(fitz.Document):
-    def __init__(self, file, password: str = None, **kwargs):
-
-    @classmethod
-    def load_from_images(cls, imgs: list):
-        pass
-
-    def parse(self):
-        'pass every page'
-
-    def save_layout(self, layout_path: str):
-        pass
-
-    def json(self) -> dict:
-        serialized_document = {
-            'metadata': self.metadata,
-            'pages': [page.json() for page in self.pages]
-        }
-        return serialized_document
-
-    @property
-    def text(self):
-        return '\f'.join([p.text for p in self.pages])
-
-    @classmethod
-    def load(cls, json_dict):
-        page_list = [Page.load(Dict(j)) for j in json_dict['pages']]
-        document = cls(None)
-        document.pages = page_list
-        document.metadata = json_dict['metadata']
-        return document
-
-    def save(self, filename, garbage=0, deflate=0, clean=0):
-        super(Document, self).save(filename, garbage=garbage, deflate=deflate, clean=clean)
-
-    def getToC(self):
-        return super(Document, self).getToC()
-
-    def setToC(self, toc):
-        super(Document, self).setToC(toc)
-
-    def PDFCatalog(self):
-        return super(Document, self).PDFCatalog()
-
-    def newPage(self, pno=-1, width=595, height=842):
-        return super(Document, self).newPage(pno, width, height)
-
-    def insertPDF(self, doc: fitz.Document, from_page=-1):
-        super(Document, self).insertPDF(doc, from_page)
-
-    def remove_hidden(self):
-        pass
-
-    # 写入word文本文档
-    def save_to_docx(self, name):
-       pass
-
-    def html(self) -> str:
-        pass
-
-
 class ImageLayout(Serializable):
-    def __init__(self, img_path, img=None, page=None):
+    def __init__(self, img_path, img=None, page: Page=None):
         pass
 
     def find_graph(self, gray: np.ndarray) -> list:
-        pass
+        return []
 
     # 布局分析
     def layout_parse(self):
@@ -363,3 +282,56 @@ class ImageLayout(Serializable):
 
     def fill_boxs(self, boxs: list):
         pass
+
+
+class Doc(Document):
+    def __init__(self, file, password: str = None, **kwargs):
+        self.pages: [Page] = []
+        super(Doc, self).__init__(file, password, **kwargs)
+
+    @classmethod
+    def load_from_images(cls, imgs: list):
+        super(Doc, cls).load_from_images(imgs)
+
+    def parse(self):
+        """pass every page"""
+        super(Doc, self).parse()
+
+    def save_layout(self, layout_path: str):
+        super(Doc, self).save_layout(layout_path)
+
+    def json(self) -> dict:
+        return super(Doc, self).json()
+
+    @classmethod
+    def load(cls, json_dict):
+        return super(Doc, cls).load(json_dict)
+
+    def save(self, filename, garbage=0, deflate=0, clean=0):
+        super(Doc, self).save(filename, garbage=garbage, deflate=deflate, clean=clean)
+
+    def getToC(self):
+        return super(Doc, self).getToC()
+
+    def setToC(self, toc):
+        super(Doc, self).setToC(toc)
+
+    def PDFCatalog(self):
+        return super(Doc, self).PDFCatalog()
+
+    def newPage(self, pno=-1, width=595, height=842):
+        return super(Doc, self).newPage(pno, width, height)
+
+    def insertPDF(self, doc: fitz.Document, from_page=-1):
+        super(Doc, self).insertPDF(doc, from_page)
+
+    def remove_hidden(self):
+        super(Doc, self).remove_hidden()
+
+    # 写入word文本文档
+    def save_to_docx(self, name):
+        super(Doc, self).save_to_docx(name)
+
+    def html(self) -> str:
+        return super(Doc, self).html()
+
