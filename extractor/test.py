@@ -1,7 +1,7 @@
 # import paddlehub as hub
 import requests
 import json
-from .document import Document, Page
+from extractor.document import Document, Page
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
@@ -38,7 +38,8 @@ def parse(pdf_path, page=None):
         document = fitz.open(pdf_path)
         doc = Page.parse(document, document[page])
     else:
-        doc = Document.parse(pdf_path)
+        doc = Document(pdf_path)
+        doc.parse()
     return doc
 
 
@@ -48,7 +49,7 @@ def cat(data):
 
 
 def test():
-    pdf_path = '../data_result/ddd.pdf'
+    pdf_path = '/Users/super/Downloads/abc.pdf'
     doc = parse(pdf_path)
     d = doc.json()
     import json
@@ -68,3 +69,5 @@ def abcd(name):
     print(name * 10)
     print('==' * 10)
     print('over')
+
+test()

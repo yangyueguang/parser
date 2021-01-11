@@ -998,14 +998,35 @@ class Page(Box):
         return hash(id(self))
 
 
-class Document(Serializable):
-    def __init__(self, pages: [Page], info: dict = None):
-        self.pages = pages
-        self.info = Dict(info)
+class Document(fitz.Document):
+    def __init__(self, file, password: str = None, **kwargs):
+        filename, stream = None, None
+        if file is None:
+            return
+        elif isinstance(file, str):
+            filename = file
+        else:
+            stream = file
+        super(Document, self).__init__(filename=filename, stream=stream, filetype='pdf')
+        if self.needsPass:
+            self.authenticate(password or '')
+        if not self.isPDF or self.needsPass and not password:
+            raise ValueError('not pdf file')
+        self.pages = []
+        self.metadata['name'] = self.name
+        self.metadata['hash'] = hashlib.sha256(open(file, 'rb').read() if filename else stream).hexdigest()
+
+    def parse(self):
+        global_y = 0
+        for page_num, page in enumerate(self):
+            print(f'start parse page {str(page_num)}')
+            p = Page.parse(self, page, page_num, global_y)
+            global_y += p.height
+            self.pages.append(p)
 
     def json(self) -> dict:
         serialized_document = {
-            'info': self.info,
+            'metadata': self.metadata,
             'pages': [page.json() for page in self.pages]
         }
         return serialized_document
@@ -1017,32 +1038,65 @@ class Document(Serializable):
     @classmethod
     def load(cls, json_dict):
         page_list = [Page.load(Dict(j)) for j in json_dict['pages']]
-        document = cls(page_list, info=json_dict['info'])
+        document = cls(None)
+        document.pages = page_list
+        document.metadata = json_dict['metadata']
         return document
 
-    @classmethod
-    def parse(cls, file_name):
-        document = fitz.open(file_name)
-        pages = []
-        index = 0
-        global_y = 0
-        for page_num, page in enumerate(document):
-            print(f'start parse page {str(page_num)}')
-            p = Page.parse(document, page, page_num, global_y)
-            global_y += p.height
-            pages.append(p)
-        info = {
-            'hash': hashlib.sha256(open(document.name, 'rb').read()).hexdigest(),
-            'name': file_name,
-        }
-        info.update(document.metadata)
-        return Document(pages, info=info)
+    def save(self, filename):
+        super(Document, self).save(filename)
 
-    def save(self, out_path, from_page=0, to_page=-1, rotate=0):
-        doc = self.pages[0].doc
-        data = doc.convertToPDF(from_page=from_page, to_page=to_page, rotate=rotate)
-        with open(out_path, 'wb') as f:
-            f.write(data)
+    def getToC(self):
+        super(Document, self).getToC()
+
+    def setToC(self, toc):
+        super(Document, self).setToC(toc)
+
+    def newPage(self, pno=-1, width=595, height=842):
+        return super(Document, self).newPage(pno, width, height)
+
+    def remove_hidden(self):
+        def remove_hidden(cont_lines):
+            out_lines = []
+            in_text = False
+            suppress = False
+            make_return = False
+            for line in cont_lines:
+                if line == b"BT":  # start of text object
+                    in_text = True  # switch on
+                    out_lines.append(line)  # output it
+                    continue
+                if line == b"ET":  # end of text object
+                    in_text = False  # switch off
+                    out_lines.append(line)  # output it
+                    continue
+                if line == b"3 Tr":  # text suppression operator
+                    suppress = True  # switch on
+                    make_return = True
+                    continue
+                if line[-2:] == b"Tr" and line[0] != b"3":
+                    suppress = False  # text rendering changed
+                    out_lines.append(line)
+                    continue
+                if line == b"Q":  # unstack command also switches off
+                    suppress = False
+                    out_lines.append(line)
+                    continue
+                if suppress and in_text:  # suppress hidden lines
+                    continue
+                out_lines.append(line)
+            if make_return:
+                return out_lines
+            else:
+                return None
+
+        for p in self:
+            xref = p.getContents()[0]  # only one b/o cleaning!
+            cont = self.xrefStream(xref)
+            cont_lines = remove_hidden(cont.splitlines())  # remove hidden text
+            if cont_lines:
+                cont = b"\n".join(cont_lines)
+                self.updateStream(xref, cont)
 
     # 写入word文本文档
     def save_to_docx(self, name):
