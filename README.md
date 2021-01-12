@@ -28,7 +28,7 @@ python3 setup.py sdist upload
 twine upload dist/*
 
 # 打包为so
-python3 pack.py build_ext
+python3 pack.py
 ```
 ### paddle cpu
 ```shell

@@ -36,6 +36,7 @@ class CustomBuildExt(build_ext):
 
 setup(
     name=MODULE_NAME,
+    script_args='build_ext',
     packages=[i.rsplit('/', 1)[0].replace('/', '.') for i in all_files],
     ext_modules=cythonize(extensions, compiler_directives={'always_allow_keywords': True, 'language_level': 3}),
     cmdclass={'build_ext': CustomBuildExt},
