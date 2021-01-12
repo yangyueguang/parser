@@ -8,10 +8,10 @@ ENV data_rec https://paddleocr.bj.bcebos.com/20-09-22/server/rec/ch_ppocr_server
 ADD ${data_det} .
 ADD ${data_cls} .
 ADD ${data_rec} .
-RUN mkdir -p ~/.paddleocr
+RUN mkdir -p ~/.paddleocr/rec
 RUN tar xf ${data_det##*/} && echo ${data_det##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/det
 RUN tar xf ${data_cls##*/} && echo ${data_cls##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/cls
-RUN tar xf ${data_rec##*/} && echo ${data_rec##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/rec
+RUN tar xf ${data_rec##*/} && echo ${data_rec##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/rec/ch
 RUN rm -f ${data_det##*/} ${data_cls##*/} ${data_rec##*/}
 
 pip install paddlehub
