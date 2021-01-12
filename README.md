@@ -2,18 +2,17 @@
 ### install paddle
 ```shell
 # paddle默认从~/.paddleocr/内寻找模型
-mkdir ~/.paddleocr
-cd ~/.paddleocr
-data_det=https://paddleocr.bj.bcebos.com/20-09-22/server/det/ch_ppocr_server_v1.1_det_infer.tar
-data_cls=https://paddleocr.bj.bcebos.com/20-09-22/cls/ch_ppocr_mobile_v1.1_cls_infer.tar
-data_rec=https://paddleocr.bj.bcebos.com/20-09-22/server/rec/ch_ppocr_server_v1.1_rec_infer.tar
-# 下载检测模型并解压
-wget ${data_det} && tar xf ${data_det##*/} && mv ${data_det##*/} det
-# 下载识别模型并解压
-wget ${data_cls} && tar xf ${data_cls##*/} && mv ${data_cls##*/} cls
-# 下载方向分类器模型并解压
-wget ${data_rec} && tar xf ${data_rec##*/} && mv ${data_rec##*/} rec
-cd ..
+ENV data_det https://paddleocr.bj.bcebos.com/20-09-22/server/det/ch_ppocr_server_v1.1_det_infer.tar
+ENV data_cls https://paddleocr.bj.bcebos.com/20-09-22/cls/ch_ppocr_mobile_v1.1_cls_infer.tar
+ENV data_rec https://paddleocr.bj.bcebos.com/20-09-22/server/rec/ch_ppocr_server_v1.1_rec_infer.tar
+ADD ${data_det} .
+ADD ${data_cls} .
+ADD ${data_rec} .
+RUN mkdir -p ~/.paddleocr
+RUN tar xf ${data_det##*/} && echo ${data_det##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/det
+RUN tar xf ${data_cls##*/} && echo ${data_cls##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/cls
+RUN tar xf ${data_rec##*/} && echo ${data_rec##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/rec
+RUN rm -f ${data_det##*/} ${data_cls##*/} ${data_rec##*/}
 
 pip install paddlehub
 pip install shapely
