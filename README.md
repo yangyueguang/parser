@@ -1,8 +1,9 @@
 ## 1. 制作镜像
 ### install paddle
 ```shell
-# paddle默认从家目录下的这几个文件夹内寻找模型
-cd ~
+# paddle默认从~/.paddleocr/内寻找模型
+mkdir ~/.paddleocr
+cd ~/.paddleocr
 data_det=https://paddleocr.bj.bcebos.com/20-09-22/server/det/ch_ppocr_server_v1.1_det_infer.tar
 data_cls=https://paddleocr.bj.bcebos.com/20-09-22/cls/ch_ppocr_mobile_v1.1_cls_infer.tar
 data_rec=https://paddleocr.bj.bcebos.com/20-09-22/server/rec/ch_ppocr_server_v1.1_rec_infer.tar
@@ -12,6 +13,7 @@ wget ${data_det} && tar xf ${data_det##*/} && mv ${data_det##*/} det
 wget ${data_cls} && tar xf ${data_cls##*/} && mv ${data_cls##*/} cls
 # 下载方向分类器模型并解压
 wget ${data_rec} && tar xf ${data_rec##*/} && mv ${data_rec##*/} rec
+cd ..
 
 pip install paddlehub
 pip install shapely
