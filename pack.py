@@ -11,9 +11,9 @@ SRC_DIR = "extractor"
 MODULE_NAME = "extractor"
 IGNORE_FILES = ["__init__.py"]
 
-all_files = [str(i) for i in Path(SRC_DIR).rglob('*.py') if i.name != '__init__.py']
+all_files = [str(i) for i in Path(SRC_DIR).rglob('*.py') if i.name not in IGNORE_FILES]
 extensions = [Extension(i.replace(os.path.sep, '.').rstrip('.py'), [i], include_dirs=['.']) for i in all_files]
-
+print(all_files)
 
 class CustomBuildExt(build_ext):
     def clean_build(self, distribution):
@@ -30,7 +30,7 @@ class CustomBuildExt(build_ext):
             os.system(f'mv {str(i)} {str(i).replace(build_path, SRC_DIR)}')
         self.clean_build(self.distribution)
         for i in Path(SRC_DIR).rglob('*'):
-            if i.name.rsplit('.', 1)[-1] in ['py', 'pyc', 'c'] and i.name != '__init__.py':
+            if i.name.rsplit('.', 1)[-1] in ['py', 'pyc', 'c'] and i.name not in IGNORE_FILES:
                 os.remove(str(i))
 
 
