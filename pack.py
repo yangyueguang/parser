@@ -25,9 +25,9 @@ class CustomBuildExt(build_ext):
     def run(self):
         build_ext.run(self)
         build_path = os.path.join(self.build_lib, SRC_DIR)
-        all_so = Path(SRC_DIR).rglob('*.so')
+        all_so = Path(build_path).rglob('*.so')
         for i in all_so:
-            os.system(f'mv {str(i)} {str(i).replace(build_path, SRC_DIR)}')
+            os.system(f'cp {str(i)} {str(i).replace(build_path, SRC_DIR)}')
         self.clean_build(self.distribution)
         for i in Path(SRC_DIR).rglob('*'):
             if i.name.rsplit('.', 1)[-1] in ['py', 'pyc', 'c'] and i.name not in IGNORE_FILES:
