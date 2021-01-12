@@ -4,6 +4,7 @@ import json
 import abc
 import os
 import re
+import sys
 import cv2
 import PIL
 import math
@@ -339,9 +340,9 @@ class BaseElement(Box):
         self._blocks = []
 
     def get_blocks(self):
-        if not self._blocks and isinstance(self.page, fitz.Document):
-            page = self.page.pages[self.page - 1]
-            self._blocks = page.getText('rawdict', clip=(self.x, self.y, self.r, self.b))
+        if not self._blocks and self.page is not None and self.page.own is not None:
+            blocks = self.page.own.getText('rawdict', clip=(self.x, self.y, self.r, self.b))
+            self._blocks = [b.get('lines', []) for b in blocks['blocks']]
         return self._blocks
 
     def layout(self):
@@ -481,16 +482,6 @@ class Table(BaseElement):
         self.grid = self.grid[leave_rows[0]: leave_rows[-1] + 1, leave_cols[0]:leave_cols[-1] + 1]
         self.grid[:3, :] = self.grid[-3:, :] = self.grid[:, :3] = self.grid[:, -3:] = 1
 
-    def get_blocks(self):
-        if self.boxs:
-            return self.boxs
-        if not self._blocks and self.page is not None and self.page.own is not None:
-            page = self.page.own
-            self._blocks = page.getText('rawdict', clip=(self.x, self.y, self.r, self.b))
-        boxs = [Box.load_span(span) for block in self._blocks for line in block for span in line['spans']]
-        boxs = [b for b in boxs if b.text.strip()]
-        return boxs
-
     def deal_sub_binary(self):
         grid_cells = self.find_cells_from_grid(self.grid)
         for row in grid_cells:
@@ -532,7 +523,11 @@ class Table(BaseElement):
                         self.grid[t + k - 2:t + k, l:r] = 1
 
     def layout(self):
-        boxs = self.get_blocks()
+        boxs = self.boxs
+        if not boxs:
+            blocks = self.get_blocks()
+            boxs = [Box.load_span(span) for block in blocks for line in block for span in line['spans']]
+            boxs = [b for b in boxs if b.text.strip()]
         if self.is_line or self.grid is None or (not boxs and self.binary is None):
             self.boxs = []
             super().layout()
@@ -763,7 +758,7 @@ class Page(Box):
         self.index = index
         self.rotate = 0
         self.scale = 1
-        self.own = self.doc[self.index]
+        self.own = None if self.doc is None else self.doc[self.index]
         self.is_ocr = False
         self.grid = None  # 网格线二进制
         self.binary = None  # 实体二进制
@@ -781,12 +776,11 @@ class Page(Box):
 
     @classmethod
     def load(cls, j: Dict):
-        meta_list = []
+        p = cls(None, j.index, j.x, j.y, j.r, j.b)
         for m in j.meta_list:
             sub_cls = eval(m.get('type', 'paragraph').capitalize())
             obj = sub_cls.load(Dict(m))
-            meta_list.append(obj)
-        p = cls(None, meta_list, j.index, j.x, j.y, j.r, j.b)
+            p.meta_list.append(obj)
         p.scale = j.scale
         p.rotate = j.rotate
         return p
@@ -827,13 +821,13 @@ class Page(Box):
                 for i in m.lines:
                     new_lines.append(i)
                     if i.rect[2] < m.r - 20 or i.text.endswith('。 '):
-                        paras.append(Paragraph.load_paragraph(p, new_lines, m.x, m.y, m.r, m.b))
+                        paras.append(Paragraph.load_paragraph(self, new_lines, m.x, m.y, m.r, m.b))
                         new_lines = []
                 if new_lines:
-                    paras.append(Paragraph.load_paragraph(p, new_lines, m.x, m.y, m.r, m.b))
+                    paras.append(Paragraph.load_paragraph(self, new_lines, m.x, m.y, m.r, m.b))
                 new_result.extend(paras)
             elif isinstance(m, Table) and m.is_line:
-                new_result.append(Line(p, [], m.x, m.y, m.r, m.b))
+                new_result.append(Line(self, [], m.x, m.y, m.r, m.b))
             else:
                 new_result.append(m)
         self.meta_list = new_result
@@ -1110,7 +1104,7 @@ class Document(fitz.Document):
             self.authenticate(password or '')
         self.pages = []
         self.metadata['name'] = self.name
-        self.metadata['hash'] = hashlib.sha256(open(file, 'rb').read() if filename else stream).hexdigest()
+        self.metadata['hash'] = hashlib.sha256(open(file, 'rb').read() if filename else stream).hexdigest() if file else None
         if not self.isPDF or self.needsPass and not password:
             raise ValueError('not pdf file or need password')
 

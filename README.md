@@ -103,6 +103,18 @@ python-docx
 paddlepaddle
 ```
 
+## 4. 接口调用
+```python
+import requests
+import base64
+import cv2
+import json
+data = cv2.imencode('.jpg', cv2.imread('abc.pdf'))[1]
+img = base64.b64encode(data.tostring()).decode('utf8')
+url = "http://127.0.0.1:8866/predict/chinese_ocr_db_crnn_mobile"
+r = requests.post(url=url, headers={"Content-type": "application/json"}, data=json.dumps({'images': [img]}))
+print(r.json()["results"])
+```
 ## 4.发布代码
 MANIFEST.in里面写的代码是为了能上传所有文件类型到pypi
 修改setup.py里面的版本号，然后执行produce.sh即可
