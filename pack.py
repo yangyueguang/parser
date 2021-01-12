@@ -8,12 +8,10 @@ from distutils.command import clean
 from Cython.Build import cythonize
 
 SRC_DIR = "extractor"
-MODULE_NAME = "extractor"
 IGNORE_FILES = ["__init__.py"]
-
 all_files = [str(i) for i in Path(SRC_DIR).rglob('*.py') if i.name not in IGNORE_FILES]
 extensions = [Extension(i.replace(os.path.sep, '.').rstrip('.py'), [i], include_dirs=['.']) for i in all_files]
-print(all_files)
+
 
 class CustomBuildExt(build_ext):
     def clean_build(self, distribution):
@@ -35,7 +33,7 @@ class CustomBuildExt(build_ext):
 
 
 setup(
-    name=MODULE_NAME,
+    name=SRC_DIR,
     script_args=['build_ext'],
     packages=[i.rsplit('/', 1)[0].replace('/', '.') for i in all_files],
     ext_modules=cythonize(extensions, compiler_directives={'always_allow_keywords': True, 'language_level': 3}),
