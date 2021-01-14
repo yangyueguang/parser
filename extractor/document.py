@@ -1540,7 +1540,7 @@ class ImageLayout(Serializable):
         def new_table(top, bottom, rl, rr, grid=self.grid, page=self.page):
             height, width = grid.shape
             if bottom - top < max(height / 50, width / 20) or row_nums <= 1:
-                new_text_line(rl, top, rr, bottom)
+                new_text_line(left, top, right, bottom)
                 return
             t = Table(page, [], 0, top, width, bottom)
             t.binary = block_binary[top:bottom + 1, 0:width]
@@ -1554,7 +1554,7 @@ class ImageLayout(Serializable):
             gap = max(20, (right - left) / 20)
             line = TextLine([], x, y, r, b)
             if x - left > gap and text_liness:
-                p = Paragraph(page, [i for i in text_liness], left, text_liness[0].y, right, b)
+                p = Paragraph(page, [i for i in text_liness], left, text_liness[0].y, right, y)
                 meta_list.append(p)
                 text_liness.clear()
             text_liness.append(line)
@@ -1630,7 +1630,7 @@ class ImageLayout(Serializable):
                 page_metas.append(i)
                 if i.is_line:
                     continue
-                block_binary[i.rect[1]:i.rect[-1] + 1, i.rect[0]:i.rect[2] + 1] = 0
+                block_binary[i.rect[1]:i.rect[-1] + 1, i.rect[0]:i.rect[2] + 1 + 5] = 0
             metas = p.layout_no_line(block_binary)
             for i in metas:
                 i.x += offset
@@ -1663,6 +1663,8 @@ class ImageLayout(Serializable):
                             if b.center in l:
                                 l.boxs.append(b)
                                 break
+                        else:
+                            l.boxs.append(b)
                     elif isinstance(m, Table):
                         m.boxs.append(b)
                     elif isinstance(m, Graph):
