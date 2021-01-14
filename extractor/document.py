@@ -1162,12 +1162,13 @@ class Document(fitz.Document):
                 img.finish(width=2, color=color)
             draws = page.getDrawings()
             for j in draws:
-                r = j['rect'].irect
-                cv2.rectangle(img, r[:2], r[2:], (255, 0, 0), 2)
+                img.drawRect(j['rect'].irect)
+                img.finish(width=2, color=(1, 0, 0))
             image_list = page.getImageList()
             for ig in image_list:
                 image_box = page.getImageBbox(ig[-2])
-                cv2.rectangle(img, image_box.irect[:2], image_box.irect[2:4], (255, 0, 0), 2)
+                img.drawRect(image_box.irect)
+                img.finish(width=2, color=(0, 1, 0))
             img.commit()
         self.save(layout_path, garbage=4, deflate=True, clean=True)
 
