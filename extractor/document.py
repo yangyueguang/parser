@@ -582,7 +582,7 @@ class Table(BaseElement):
         shadow_y[shadow_y <= most_y+5] = 0
         shadow_x[shadow_x <= most_x+5] = 0
         rows = np.where(np.diff(shadow_y) > shadow_y.max() / 5)[0] + 1
-        cols = np.where(np.diff(shadow_x) > shadow_x.max() / 5)[0] + 1
+        cols = np.where(np.diff(shadow_x) > shadow_x.max() / 6)[0] + 1
         rows = np.insert(rows, 0, values=0, axis=0)
         cols = np.insert(cols, 0, values=0, axis=0)
         split_rows = np.split(rows, np.where(np.diff(rows) > 5)[0] + 1, axis=0)
