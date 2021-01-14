@@ -739,6 +739,22 @@ class Graph(BaseElement):
         pic = PIL.Image.open(BytesIO(pix.getPNGData()))
         pic.show(self.text)
 
+    @property
+    def is_real_graph(self):
+        image_array = np.frombuffer(self.get_pixmap().getPNGData(), dtype=np.uint8)
+        gray = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
+        binary = cv2.adaptiveThreshold(~gray, 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -10)
+        er = cv2.erode(binary, cv2.getStructuringElement(cv2.MORPH_RECT, (50, 1)), iterations=1)
+        row = morphology.dilation(er, morphology.rectangle(3, 1))
+        ec = cv2.erode(binary, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 50)), iterations=1)
+        ec = cv2.dilate(ec, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 50)), iterations=1)
+        col = morphology.dilation(ec, morphology.rectangle(1, 3))
+        grid = row + col
+        h, w = grid.shape
+        cols = np.where(np.diff(np.where(grid.sum(axis=0) > h*0.8)) > 8)[1]
+        rows = np.where(np.diff(np.where(grid.sum(axis=1) > w*0.8)) > 8)[1]
+        return len(rows) <= 0 or len(cols) <= 0
+
     def get_pixmap(self):
         if self.page is None:
             return
@@ -1053,7 +1069,7 @@ class Page(Box):
         return self.own.getTextPage(clip, flags)
 
     def getPixmap(self, matrix=fitz.Matrix(3, 3).preRotate(0), clip=None):
-        return self.own.getPixmap(matrix, clip=clip)
+        return self.own.getPixmap(matrix=matrix, clip=clip)
 
     def annots(self, types=None):
         return self.own.annots(types)
@@ -1594,9 +1610,10 @@ class ImageLayout(Serializable):
         meta_graphs = []
         for g in graphs:
             graph = Graph(self.page, [], *g)
-            meta_graphs.append(graph)
-            self.img[g[1]:g[-1]+1, g[0]:g[2]+1] = 255
-            self.binary[g[1]:g[-1]+1, g[0]:g[2]+1] = 0
+            if graph.is_real_graph:
+                meta_graphs.append(graph)
+                self.img[g[1]:g[-1]+1, g[0]:g[2]+1] = 255
+                self.binary[g[1]:g[-1]+1, g[0]:g[2]+1] = 0
         meta_list.extend(meta_graphs)
         pages = self.split_columns(self.binary)
         offset = 0
