@@ -23,7 +23,7 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT, WD_TAB_ALIGNMENT
 ocr_engine = None
 try:
     from paddleocr import PaddleOCR
-    ocr_engine = PaddleOCR(use_angle_cls=True, lang="ch")
+    ocr_engine = PaddleOCR(use_angle_cls=True, lang="ch", use_gpu=True)
 except Exception as e:
     print('please install paddleocr')
 
@@ -83,7 +83,7 @@ class utils(object):
         return utils.find_y_middles(binary, row_gap), utils.find_x_middles(binary, col_gap)
 
     @staticmethod
-    def get_text_boxs(img: np.ndarray):
+    def get_text_boxs(img: np.ndarray, is_split=False):
         boxs = []
         if ocr_engine is None:
             return boxs
@@ -101,7 +101,7 @@ class utils(object):
                 chars = [Char(c, x0 + i * cw, y0 + offset, x0 + (i + 1) * cw, y1 + offset) for i, c in enumerate(txt)]
                 boxs.append(Box(chars, x0, y0 + offset, x1, y1 + offset))
 
-        if h <= 1000:
+        if h <= 1000 or not is_split:
             recognize_img(img)
         else:
             middle = round(h / 2)
@@ -545,12 +545,16 @@ class Table(BaseElement):
         self.cols = len(grids[0]) if grids else 0
         for r in grids:
             for c in r:
+                c.x += self.x
+                c.y += self.y
+                c.r += self.x
+                c.b += self.y
                 for k in range(len(boxs) - 1, -1, -1):
                     span = boxs[k]
-                    if (span - self).center in c:
+                    if span.center in c:
                         c.chars[0:0] = span.chars
                         boxs.pop(k)
-            row = TextLine(r, self.x, self.y + r[0].y, self.r, self.y + r[0].b)
+            row = TextLine(r, self.x, r[0].y, self.r, r[0].b)
             self.lines.append(row)
         # deal empty row or col
         self.lines = [i for i in self.lines if i.chars]
@@ -1685,3 +1689,12 @@ class ImageLayout(Serializable):
                     l.fresh()
                 if len(m.lines) == 1 and re.match(r'\d+\s*((\.\s*\d+\s*)*\.?\s|(\.\d+)+[\.\s]*).{1,40}', m.text.strip()):
                     self.meta_list[i] = Title(m.page, m.lines, m.x, m.y, m.r, m.b)
+        # 验证是否有没识别到的单元格
+        empty_cells = [c for m in self.meta_list if isinstance(m, Table) for c in m.cells if not c.chars and c.col_span and c.row_span]
+        for c in empty_cells:
+            x, y, r, b = c.rect
+            cell_img = self.img[y: b, x: r]
+            sub_binary = cv2.resize(cell_img, (5000, int(5000/c.width*c.height)))
+            cell_box = utils.get_text_boxs(sub_binary)
+            c.chars = [char for b in cell_box for char in b.chars]
+

@@ -2,6 +2,13 @@
 ### install paddle
 ```shell
 # paddle默认从~/.paddleocr/内寻找模型
+FROM python:3.8
+MAINTAINER Super
+USER root
+ENV PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+ADD app /app
+WORKDIR /app
 ENV data_det https://paddleocr.bj.bcebos.com/20-09-22/server/det/ch_ppocr_server_v1.1_det_infer.tar
 ENV data_cls https://paddleocr.bj.bcebos.com/20-09-22/cls/ch_ppocr_mobile_v1.1_cls_infer.tar
 ENV data_rec https://paddleocr.bj.bcebos.com/20-09-22/server/rec/ch_ppocr_server_v1.1_rec_infer.tar
@@ -13,19 +20,20 @@ RUN tar xf ${data_det##*/} && echo ${data_det##*/}|sed "s/.tar//g"|xargs -I {} m
 RUN tar xf ${data_cls##*/} && echo ${data_cls##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/cls
 RUN tar xf ${data_rec##*/} && echo ${data_rec##*/}|sed "s/.tar//g"|xargs -I {} mv {} ~/.paddleocr/rec/ch
 RUN rm -f ${data_det##*/} ${data_cls##*/} ${data_rec##*/}
+RUN pip3 install -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com --upgrade pip
+RUN ln -s /usr/bin/pip3 /usr/bin/pip
+RUN pip install Cython --install-option="--no-cython-compile" --ignore-installed --no-deps
+RUN pip install -r require.txt
+RUN pip install paddlepaddle -i https://mirror.baidu.com/pypi/simple
+EXPOSE 8000
+CMD python3 app.py
 
-pip install paddlehub
-pip install shapely
-pip install pyclipper
-pip install paddleocr
-pip install paddlepaddle
+
 hub install chinese_ocr_db_crnn_server==1.1.0
 hub serving start -m chinese_ocr_db_crnn_mobile -p 8866
-
 #上传pip：必须用setup的名
 python3 setup.py sdist upload
 twine upload dist/*
-
 # 打包为so
 python3 pack.py
 ```
@@ -100,6 +108,7 @@ click==7.1.2
 psutil==5.7.3
 python-docx
 paddlepaddle
+paddleocr
 ```
 
 ## 4. 接口调用
