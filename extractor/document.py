@@ -1118,11 +1118,19 @@ class Document(fitz.Document):
         super(Document, self).__init__(filename=filename, stream=stream, filetype='pdf')
         if self.needsPass:
             self.authenticate(password or '')
-        self.pages = []
         self.metadata['name'] = self.name
         self.metadata['hash'] = hashlib.sha256(open(file, 'rb').read() if filename else stream).hexdigest() if file else None
         if not self.isPDF or self.needsPass and not password:
             raise ValueError('not pdf file or need password')
+        global_y = 0
+        self.pages = []
+        for page_num, page in enumerate(self):
+            p = Page(self, page.number, *page.rect.irect)
+            p.b += global_y
+            p.y += global_y
+            p.rotate = page.rotation
+            global_y += p.height
+            self.pages.append(p)
 
     @classmethod
     def load_from_images(cls, imgs: list):
@@ -1138,16 +1146,8 @@ class Document(fitz.Document):
         return doc
 
     def parse(self):
-        global_y = 0
-        for page_num, page in enumerate(self):
-            print(f'start parse page {str(page_num)}')
-            p = Page(self, page.number, *page.rect.irect)
-            p.b += global_y
-            p.y += global_y
-            p.rotate = page.rotation
-            global_y += p.height
+        for p in self.pages:
             p.parse()
-            self.pages.append(p)
 
     def save_layout(self, layout_path: str):
         for page in self:
