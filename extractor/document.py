@@ -613,7 +613,7 @@ class Table(BaseElement):
                 right_open, bottom_open = True, True
                 while right_open or bottom_open:
                     top, bottom, left, right = rows[m], rows[m + 1], cols[n], cols[n + 1]
-                    right_open = np.any(binary[min(top + w, bottom - 1): bottom, right: right + w]) != 1
+                    right_open = np.any(binary[min(top + w, bottom - 1): bottom, right-w: right + w]) != 1
                     bottom_open = np.any(binary[bottom: bottom + w, min(left + w, right - 1): right]) != 1
                     if bottom_open:
                         m += 1
