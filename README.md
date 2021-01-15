@@ -27,10 +27,8 @@ RUN pip install -r require.txt
 RUN pip install paddlepaddle -i https://mirror.baidu.com/pypi/simple
 EXPOSE 8000
 CMD python3 app.py
-
-
-hub install chinese_ocr_db_crnn_server==1.1.0
-hub serving start -m chinese_ocr_db_crnn_mobile -p 8866
+```
+```shell
 #上传pip：必须用setup的名
 python3 setup.py sdist upload
 twine upload dist/*
@@ -43,7 +41,7 @@ python3 pack.py
 FROM hub.baidubce.com/paddlepaddle/paddle:latest-gpu-cuda9.0-cudnn7-dev
 # PaddleOCR base on Python3.7
 RUN pip3.7 install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
-RUN python3.7 -m pip install paddlepaddle==1.7.2 -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN python3.7 -m pip install paddlepaddle==1.8.5 -i https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip3.7 install paddlehub --upgrade -i https://pypi.tuna.tsinghua.edu.cn/simple
 RUN git clone https://gitee.com/paddlepaddle/PaddleOCR.git /PaddleOCR
 WORKDIR /PaddleOCR
@@ -67,7 +65,7 @@ CMD ["/bin/bash","-c","hub install deploy/hubserving/ocr_system/ && hub serving 
 FROM hub.baidubce.com/paddlepaddle/paddle:latest-gpu-cuda10.0-cudnn7-dev
 # PaddleOCR base on Python3.7
 RUN pip3.7 install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
-RUN python3.7 -m pip install paddlepaddle-gpu==1.7.2.post107 -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN python3.7 -m pip install paddlepaddle-gpu==1.8.5.post107 -i https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip3.7 install paddlehub --upgrade -i https://pypi.tuna.tsinghua.edu.cn/simple
 RUN git clone https://gitee.com/paddlepaddle/PaddleOCR.git /PaddleOCR
 WORKDIR /PaddleOCR
@@ -119,7 +117,7 @@ import cv2
 import json
 data = cv2.imencode('.jpg', cv2.imread('abc.pdf'))[1]
 img = base64.b64encode(data.tostring()).decode('utf8')
-url = "http://127.0.0.1:8866/predict/chinese_ocr_db_crnn_mobile"
+url = "http://127.0.0.1:8866/predict/ocr_system"
 r = requests.post(url=url, headers={"Content-type": "application/json"}, data=json.dumps({'images': [img]}))
 print(r.json()["results"])
 ```
