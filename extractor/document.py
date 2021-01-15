@@ -1694,7 +1694,15 @@ class ImageLayout(Serializable):
         for c in empty_cells:
             x, y, r, b = c.rect
             cell_img = self.img[y: b, x: r]
-            sub_binary = cv2.resize(cell_img, (5000, int(5000/c.width*c.height)))
+            sub_binary = cv2.resize(cell_img, (1000, int(1000/c.width*c.height)))
             cell_box = utils.get_text_boxs(sub_binary)
             c.chars = [char for b in cell_box for char in b.chars]
-
+        empty_lines = [l for m in self.meta_list if isinstance(m, Paragraph) for l in m.lines if not l.boxs]
+        for l in empty_lines:
+            x, y, r, b = l.rect
+            cell_img = self.img[y-b+y: b+b-y, x: r]
+            scale_height = int(1000 / l.width * l.height)
+            cell_box = utils.get_text_boxs(cv2.resize(cell_img, (1000, scale_height*3)))
+            chars = [char for b in cell_box for char in b.chars if scale_height < char.center[-1] < scale_height * 2]
+            l.boxs.append(Box(sorted(chars, key=lambda c: c.x), *l.rect))
+            l.fresh()
