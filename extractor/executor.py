@@ -1,116 +1,71 @@
-import os
-import io
-import signal
-import time
-import uuid
-import traceback
 import multiprocessing
-import multiprocessing.managers
+from multiprocessing import Pool, Process, Manager
+from concurrent.futures import ThreadPoolExecutor, wait
 
 
 class Work(object):
-    def __init__(self, target, *args, **kwargs):
+    def __init__(self, target, call_back=None, error_callback=None, *args, **kwargs):
         self.target = target
         self.args = args
         self.kwargs = kwargs
-        self.id = uuid.uuid1().hex
-        self.data = None
-        self.error = None
-        self.results = {}
+        self.call_back = call_back
+        self.error_callback = error_callback
 
     def run(self):
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        data = None
-        error = None
+        res = None
         try:
-            data = self.target(*self.args, **self.kwargs)
-        except:
-            with io.StringIO() as fp:
-                traceback.print_exc(file=fp)
-                error = fp.getvalue()
+            res = self.target(*self.args, **self.kwargs)
+        except Exception:
+            if self.error_callback:
+                self.error_callback()
         finally:
-            self.results[self.id] = {
-                'data': data,
-                'error': error
-            }
-
-    def done(self):
-        r = self.results.get(self.id)
-        if not r:
-            self.error = '异常退出'
-        else:
-            self.error = r['error']
-            self.data = r['data']
+            if self.call_back:
+                self.call_back(res)
 
 
 class Executor(object):
-    def __init__(self, method='fork'):
-        self.ctx = multiprocessing.get_context(method)
+    def __init__(self, able=multiprocessing.cpu_count()):
+        self.pool = Pool(able)
+        self.threads = ThreadPoolExecutor(max_workers=able)
+        self.dict = Manager().dict()
+        self.list = Manager().list()
+        self.works = []
 
-    def get_start_method(self):
-        return self.ctx.get_start_method()
+    # 多进程方式
+    def run(self):
+        jobs = []
+        for i in self.works:
+            w = self.pool.apply_async(i.target, i.args, i.kwargs, callback=i.call_back, error_callback=i.error_callback)
+            jobs.append(w)
+        self.pool.close()
+        self.pool.join()
+        self.pool.terminate()
+        return [w.get(timeout=60) for w in jobs]
 
-    def execute(self, workers: list):
-        def manager_initializer():
-            signal.signal(signal.SIGINT, on_signal)
-            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    # 多线程方式
+    def thread_run(self):
+        futures = []
+        for i in self.works:
+            res = self.threads.submit(i.target, *i.args)
+            futures.append(res)
+        wait(futures)
 
-        def on_signal(num):
-            print(f'signal={num}, work process={os.getpid()}')
-
-        m = multiprocessing.managers.SyncManager()
-        m.start(initializer=manager_initializer)
-        with m:
-            self.do_execute(workers, self.ctx, m)
-
-    def do_execute(self, workers, ctx, manager):
-        results = manager.dict()
-        processes = []
-        for w in workers:
-            w.results = results
-            p = ctx.Process(target=w.run, daemon=True)
-            p.start()
-            processes.append(p)
-
-        def kill_processes(timeout=3):
-            for p in processes:
-                if p.is_alive():
-                    p.terminate()
-            for p in processes:
-                if p.is_alive():
-                    p.join(timeout=timeout)
-                    if p.is_alive():
-                        try:
-                            os.kill(p.pid, signal.SIGKILL)
-                        except:
-                            ...
-
-        def has_alive():
-            for p in processes:
-                if p.is_alive():
-                    return True
-            return False
-
-        try:
-            while has_alive():
-                time.sleep(0.1)
-        finally:
-            kill_processes()
-        for w in workers:
-            w.done()
 
 
 if __name__ == '__main__':
-    executor = Executor()
-    works = []
-    args = [1, 2, 3]
-    kwargs = {
-        # 'a': 'a',
-        # 'b': 'b'
-    }
-    def do_something(f, c, a):
-        time.sleep(10)
-        print(f'hello{a} {f} {c}')
-    for i in range(3):
-        works.append(Work(do_something, *args, **kwargs))
-    executor.execute(works)
+    # ds
+    def doson(a=None, b=None, c=None):
+        print(f'hello')
+        return 'ok'
+
+    def workover(name):
+        print(name)
+        print('==' * 10)
+    execu = Executor()
+    ar = [1,2,3]
+    for i in range(10):
+        w = Work(doson, None, None, *ar)
+        execu.works.append(w)
+    # result = execu.run()
+    result = execu.thread_run()
+    print('over')
