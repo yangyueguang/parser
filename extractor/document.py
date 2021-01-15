@@ -1,4 +1,6 @@
 # coding=utf-8
+# author: Super
+# email: 2829969299@qq.com
 import fitz
 import json
 import abc
