@@ -810,7 +810,7 @@ class Page(Box):
     def parse_ocr(self):
         image_array = np.frombuffer(self.getPixmap().getPNGData(), dtype=np.uint8)
         img = cv2.imdecode(image_array, cv2.IMREAD_ANYCOLOR)
-        boxs = utils.get_text_boxs(img)
+        boxs = utils.get_text_boxs(img, is_split=True)
         op = ImageLayout(None, img=img, page=self)
         op.layout_parse()
         op.fill_boxs(boxs)
@@ -1153,6 +1153,7 @@ class Document(fitz.Document):
 
     def parse(self):
         for p in self.pages:
+            print(p.index)
             p.parse()
 
     def save_layout(self, layout_path: str):
@@ -1703,6 +1704,8 @@ class ImageLayout(Serializable):
         for l in empty_lines:
             x, y, r, b = l.rect
             cell_img = self.img[y-b+y: b+b-y, x: r]
+            if len(cell_img) <= 0:
+                continue
             scale_height = int(1000 / l.width * l.height)
             cell_box = utils.get_text_boxs(cv2.resize(cell_img, (1000, scale_height*3)))
             chars = [char for b in cell_box for char in b.chars if scale_height < char.center[-1] < scale_height * 2]
